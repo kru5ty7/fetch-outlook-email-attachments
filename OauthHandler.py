@@ -1,11 +1,11 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import uuid
 import requests
-import urllib.parse as url_parse 
 from urllib.parse import parse_qs, urlparse
 import json
 import logging
 import os
+
+from Config import BaseConfig
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -13,42 +13,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-class OAuthConfig:
-    """
-    A class to load environment variables for OAuth 2.0 authentication.
-    """
-    def __init__(self):
-        """
-        Sets the environment variables for client_id, client_secret, and redirect_uri.
-        """
-        base_url = os.getenv("BASE_URL")
-        self.base_url = base_url
-        self.tenant_id = os.getenv("TENANT_ID")
-        self.token_url = f"{base_url}/oauth2/v2.0/token"
-        self.scope = os.getenv("SCOPE")
-        self.client_secret = os.getenv("CLIENT_SECRET")
-        self.client_id = os.getenv("CLIENT_ID")
-        self.redirect_uri = os.getenv("REDIRECT_URI") 
-        self.add_token_response_to_file = os.getenv("ADD_TOKEN_RESPONSE_TO_FILE", "false").lower() == "true"
-        self.auth_url = self._build_auth_url()
-    
-    def _build_auth_url(self):
-        data = {
-            'client_id': self.client_id,
-            'response_type': 'code',
-            'redirect_uri': self.redirect_uri,
-            'response_mode': 'query',
-            'scope': self.scope,
-            'prompt': 'login', # force login prevent reuse of the same authcode
-            "state": str(uuid.uuid4()),
-            "max_age": "0"
-        }
-
-        return f"{os.getenv('BASE_URL')}/oauth2/v2.0/authorize?{url_parse.urlencode(data)}"
-
 class OAuthHandler(BaseHTTPRequestHandler):
 
-    config = OAuthConfig()
+    config = BaseConfig()
    
     def _get_code_state_from_query_params(self, query_params):
         """
@@ -162,7 +129,7 @@ class OAuthHandler(BaseHTTPRequestHandler):
 
 class OAuthRunner:
     def __init__(self):
-        self.config = OAuthConfig()
+        self.config = BaseConfig()
 
     def _open_browser(self):
         """
