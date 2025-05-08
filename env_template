@@ -1,0 +1,10 @@
+CLIENT_SECRET = xxx-xx-xxxx-xxxx-xxxxxxxxxxxx
+CLIENT_ID = xxx-xx-xxxx-xxxx-xxxxxxxxxxxx
+TENANT_ID = xxx-xx-xxxx-xxxx-xxxxxxxxxxxx
+SCOPE = openid profile offline_access User.Read mail.read mail.ReadWrite MailboxSettings.ReadWrite
+BASE_URL = https://login.microsoftonline.com/consumers
+REDIRECT_URI = http://localhost:8000/
+ADD_TOKEN_RESPONSE_TO_FILE = True
+ACCESS_TOKEN = xxx-xx-xxxx-xxxx-xxxxxxxxxxxx
+REFRESH_TOKEN = xxx-xx-xxxx-xxxx-xxxxxxxxxxxx
+    
