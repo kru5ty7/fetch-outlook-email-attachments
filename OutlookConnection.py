@@ -8,7 +8,8 @@ logging.basicConfig(level=logging.INFO)
 
 class OutlookConnection:
 
-    def __init__(self, outlook_connection_var_name): 
+    def __init__(self, outlook_connection_var_name):
+        self.tenant_id = outlook_connection_var_name.get("TENANT_ID")
         self.access_token = outlook_connection_var_name.get('access_token')
         self.refresh_token = outlook_connection_var_name.get('refresh_token')
         self.client_id = outlook_connection_var_name.get('client_id')
