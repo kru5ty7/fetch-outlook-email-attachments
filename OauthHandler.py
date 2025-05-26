@@ -29,7 +29,7 @@ class OAuthHandler(BaseHTTPRequestHandler):
 
         return code, state
     
-    def _send_response(self, code, state, response_code, response_text):
+    def _send_response(self, code, state, response_code, response_text, retry):
         """
         Sends a response back to the client with the received code and state.
         """
@@ -38,18 +38,19 @@ class OAuthHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         # Send a simple HTML response
-        response_html = """
+        response_html = f"""
             <html>
-                <head><title>OAuth 2.0 Callback</title></head>
+                <head><title>OAuth 2.0 Callback </title></head>
                 <body>
                     <h1>OAuth 2.0 Callback</h1>
-                    <p>Authorization code received: {}</p>
-                    <p>State received: {}</p>
-                    <p>Response code: {}</p>
-                    <p>Response text: {}</p>
+                    <p>Retry Attempt {retry+1}</p>
+                    <p>Authorization code received: {code}</p>
+                    <p>State received: {state}</p>
+                    <p>Response code: {response_code}</p>
+                    <p>Response text: {response_text}</p>
                 </body>
             </html>
-        """.format(code, state, response_code, response_text)
+        """
         
         self.wfile.write(response_html.encode('utf-8'))
 
@@ -63,7 +64,7 @@ class OAuthHandler(BaseHTTPRequestHandler):
                 json.dump(token_response, token_file, indent=4)
                 logging.info("Token response written to file.")
 
-    def _get_token_for_auth_code(self, code:str, state:str):
+    def _get_token_for_auth_code(self, code:str, state:str, retry:int=0):
         """
         Handles the token request using the authorization code received from the OAuth 2.0 server.
         This function is called after the authorization code is received in the callback URL.
@@ -99,12 +100,17 @@ class OAuthHandler(BaseHTTPRequestHandler):
 
             os.environ["TOKEN_TYPE"] = token_response.get("token_type", None)
 
-            self._send_response(code, state, 200, "Token request successful.")
+            self._send_response(code, state, 200, "Token request successful.", retry)
             return token_response   
         else:
             logging.error(f"Token request failed with status code {response.status_code}.")
             logging.error(f"Response: {response.text}")
-            self._send_response(code, state, response.status_code, response.text)
+            if retry < 3:
+
+                logging.error(f"retrying..{retry}")
+                self._get_token_for_auth_code(code, state, retry+1)
+            
+            self._send_response(code, state, response.status_code, response.text, retry)
 
     def do_GET(self):
         # Parse the query parameters from the URL
@@ -115,16 +121,15 @@ class OAuthHandler(BaseHTTPRequestHandler):
 
         if code is None or state is None:
             logging.error("Missing 'code' or 'state' in the query parameters.")
-            self._send_response(None, None, 400, "Missing 'code' or 'state' in the query parameters.")
+            self._send_response(None, None, 400, "Missing 'code' or 'state' in the query parameters.", 0)
             exit(1)
             return
 
         if code:
-            logging.info(f"Code received: {code}")
             self._get_token_for_auth_code(code, state)
             exit(0)
 
-        self._send_response(code, state, 500, "Internal Server Error")
+        self._send_response(code, state, 500, "Internal Server Error", 0)
         exit(1)
 
 class OAuthRunner:
