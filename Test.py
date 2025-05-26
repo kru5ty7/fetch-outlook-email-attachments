@@ -7,21 +7,6 @@ logging.basicConfig(level=logging.INFO)
 
 config = TokenConfig()
 
-# def load_token_details():
-#     """
-#     Load token details from a JSON file.
-#     this is done for local testing purposes only.
-#     In production, you should use a secure vault or environment variables.
-#     """
-#     import json
-#     try:
-#         with open('token_details.json', 'r') as f:
-#             token_data = json.load(f)
-#             return token_data
-#     except FileNotFoundError:
-#         logging.error("Token details file not found.")
-#         return None
-
 basic_info = {
         "client_id": config.client_id,
         "client_secret": config.client_secret,
@@ -33,7 +18,7 @@ basic_info = {
         "access_token": config.access_token
     }
 
-sensor = OutlookEmail(basic_info, True)
+sensor = OutlookEmail(basic_info, False)
 all_emails = sensor.get_unread_emails_from_folder('xxx-xxx-xxx@outlook.com')
 
 if not all_emails:
