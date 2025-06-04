@@ -251,3 +251,195 @@ class OutlookEmail:
         else:
             logging.error(f"Failed to update email category. Status code: {response.status_code}, Response: {response.text}")
             return False
+    
+    def search_email_in_draft(self, search_param, search_param_value):
+
+        if not isinstance(search_param, str):
+            logging.error(f"Excepted search params to be of type `str`. Received of type {type(search_param)}")
+            raise TypeError(f"Excepted search params to be of type `str`. Received of type {type(search_param)}")
+
+        if search_param not in ['id', 'subject']:
+            logging.error(f"Excepted search params `id` or `subject`. Received {search_param}")
+            raise ValueError(f"Excepted search params `id` or `subject`. Received {search_param}")
+
+        draft_emails = self.get_emails_from_folder(folder="drafts")
+
+        for draft in draft_emails:
+            if draft[search_param] == search_param_value:
+                logging.info(f"Email found in draft status with search_param {search_param} and value {search_param_value}")
+                return draft
+
+        logging.exception(f"No email was found in draft status with search_param {search_param} and value {search_param_value}")
+        return {}
+
+
+    def draft_email(self, subject, body, toRecipients, ccRecipients=[], bccRecipients=[], email_id = None, update=False):
+        """
+        Draft and email
+        """
+        session = self.session
+        if update == True:
+            url = f"https://graph.microsoft.com/v1.0/me/messages/{email_id}"
+        else:
+            url = "https://graph.microsoft.com/v1.0/me/messages"
+        data = {
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": body
+            },
+            "toRecipients": [ 
+                {
+                    "emailAddress": {
+                        "address": toRecipient,
+                    }
+                }    
+            for toRecipient in toRecipients ],
+            "ccRecipients": [ 
+                {
+                    "emailAddress": {
+                        "address": ccRecipient,
+                    }
+                }    
+            for ccRecipient in ccRecipients ],
+            "bccRecipients": [ 
+                {
+                    "emailAddress": {
+                        "address": bccRecipient,
+                    }
+                }    
+            for bccRecipient in bccRecipients ]
+        }
+        
+        if update == True:
+            response = session.patch(url, json=data)
+        else:
+            response = session.post(url, json=data)
+        resp_json = response.json()
+        if response.status_code == 201 or response.status_code == 200:
+            logging.info(f"Successfully drafted / updated email with subject {subject}. Email ID: {resp_json['id']}")
+            return {
+                "status": "success",
+                "draft_details": resp_json
+            }
+        else:
+            logging.error(f"Failed to create / update email Draft. Status code: {response.status_code}, Response: {response.text}")
+            return {
+                "status": "fail",
+                "draft_details": resp_json
+            }
+        
+    def update_draft(self, create_draft_if_not_found, subject, body, toRecipients, email_id=None, ccRecipients=[], bccRecipients=[]):
+        draft_email = None
+        if email_id:
+            logging.info(f"Searching Drafts for email with ID {email_id}")
+            draft_email = self.search_email_in_draft('id', email_id)
+        if not draft_email and subject:
+            logging.info(f"Searching Drafts for email with subject {subject}")
+            draft_email = self.search_email_in_draft('subject', subject)
+
+        if not draft_email:
+            if create_draft_if_not_found:
+                logging.info(f"No email found for the ID / Subject. Initiated new draft creation. Set `create_draft_if_not_found` to avoid new draft creation")
+                if subject and body and toRecipients:
+                    draft_email = self.draft_email(subject, body, toRecipients, ccRecipients, bccRecipients)
+                    return {
+                        "draft_updated": False,
+                        "draft_created": True,
+                        "response": draft_email,
+                        "message": "No draft found with provided details and a new draft created with details"
+                    }
+                return {
+                        "draft_updated": False,
+                        "draft_created": False,
+                        "response": {},
+                        "message": "No draft found with provided details and all mandatory fields are not present for a new draft creation"
+                    }
+            return {
+                        "draft_updated": False,
+                        "draft_created": False,
+                        "response": {},
+                        "message": "No draft found with provided details and new draft creation skipped"
+                    }
+        
+        return self.draft_email(subject, body, toRecipients, ccRecipients, bccRecipients, draft_email['id'], True)
+
+    def send_email(self, email_id=None, subject=None):
+        draft_email = None
+        if email_id:
+            logging.info(f"Searching Drafts for email with ID {email_id}")
+            draft_email = self.search_email_in_draft('id', email_id)
+        if not draft_email and subject:
+            logging.info(f"Searching Drafts for email with subject {subject}")
+            draft_email = self.search_email_in_draft('subject', subject)
+        if not draft_email:
+            return {
+                "sent_email": False,
+                "status": 404,
+                "response": {},
+                "message": "No draft email found with provided details"
+            }
+        
+        url = f"https://graph.microsoft.com/v1.0/me/messages/{draft_email['id']}/send"
+
+        response = self.session.post(url)
+
+        if response.status_code == 202:
+            logging.info(f"Email Message sent successfully. Email Subject: {draft_email['subject']} Email ID: {draft_email['id']}")
+            return {
+                "sent_email": True,
+                "status": 202,
+                "response": response.json(),
+                "message": "Successfully sent email"
+            }
+        else:
+            logging.info(f"Failure occurred while sending email. Email Subject: {draft_email['subject']} Email ID: {draft_email['id']}. Response Code: {response.status_code}, Response Details: {response.text}")
+            return {
+                "sent_email": False,
+                "status": response.status_code,
+                "response": response.json(),
+                "message": response.text
+            }
+
+    def delete_email(self, email_id):
+        url = f"https://graph.microsoft.com/v1.0/me/messages/{email_id}"
+
+        response = self.session.delete(url)
+
+        if response.status_code == 201 or response.status_code == 200:
+            logging.info(f"Successfully deleted email. Email ID: {email_id}")
+            return {
+                "status": "success",
+                "details": "Email deleted successfully"
+            }
+        else:
+            logging.error(f"Failed to delete email. Status code: {response.status_code}, Response: {response.text}")
+            return {
+                "status": "fail",
+                "details": response.text
+            }
+
+
+    def move_email_to_another_folder(self, email_id, folder_id):
+
+        url = f"https://graph.microsoft.com/v1.0/me/messages/{email_id}/move"
+
+        data = {
+            "destinationId": folder_id
+        }
+
+        response = self.session.post(url, json=data)
+
+        resp_json = response.json()
+        if response.status_code == 201 or response.status_code == 200:
+            logging.info(f"Successfully moved email. Email ID: {resp_json['id']}")
+            return {
+                "status": "success",
+                "details": resp_json
+            }
+        else:
+            logging.error(f"Failed to move email to different folder. Status code: {response.status_code}, Response: {response.text}")
+            return {
+                "status": "fail",
+                "details": resp_json
+            }

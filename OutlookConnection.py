@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import os
+import shutil
 import requests
 import logging
 
@@ -46,6 +47,12 @@ class OutlookConnection:
         self.token_type = token_data.get('token_type')
         self.scope = token_data.get('scope')
 
+        if not self.add_token_to_file:
+            logging.info("Token details not saved to file. To save, set add_token_to_file to True.")
+            return
+
+        logging.info("Token details are being saved to file. DO NOT USE THIS SETTING IN THE PRODUCTION.")
+
         # adding timestamp and other details to token_data
         token_data['timestamp'] = self.timestamp()
         token_data['client_id'] = self.client_id
@@ -53,9 +60,11 @@ class OutlookConnection:
         token_data['tenant_id'] = os.getenv("TENANT_ID")
 
         self._archive_old_token_details()
-        with open('token_details.json', 'w') as f: 
+        from Config import OverWriteEnv
+        with open(f'{self.working_dir}\\token_details.json', 'w') as f: 
             json.dump(token_data, f, indent=4)
         logging.info("Token details updated and saved to token_details.json")
+        OverWriteEnv('token_details.json', self.working_dir).run()
         return
 
     def _refresh_access_token(self):
@@ -69,7 +78,6 @@ class OutlookConnection:
             'refresh_token': self.refresh_token,
             'scope': self.scope,
         }
-        print(payload) 
 
         response = requests.post(self.token_url, data=payload)
         if response.status_code == 200:
